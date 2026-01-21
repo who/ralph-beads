@@ -1,0 +1,96 @@
+# Ralph Wiggum Loop Prompt
+
+Read @AGENTS.md for session rules and landing-the-plane protocol.
+
+## Your Task
+
+1. **Check Status**: Run `bd ready` to see issues with no blockers
+2. **Select One Issue**: Pick the highest-priority issue from ready work
+3. **Claim It**: Run `bd update <id> --status=in_progress`
+4. **Log Start**: Add comment with your implementation plan: `bd comments add <id> "Starting work. Plan: <brief strategy>"`
+5. **Implement**: Make the code changes described in the issue
+6. **Log Progress**: After key milestones, update ticket: `bd comments add <id> "Progress: <what you completed>"`
+7. **Verify**: Run tests, linting, or other verification appropriate to your project
+8. **Log Verification**: Record verification results: `bd comments add <id> "Verification: <test results summary>"`
+9. **Complete**: Run `bd close <id> --reason="<brief summary>"`
+10. **Commit**: Stage and commit your changes with descriptive message
+11. **Push**: Run `git pull --rebase && bd sync && git push` to preserve work
+
+## Verification
+
+Run the project's standard verification commands before committing. Common patterns:
+
+| Check | Examples |
+|-------|----------|
+| Tests | `npm test`, `pytest`, `go test ./...`, `cargo test` |
+| Lint | `npm run lint`, `ruff check .`, `golangci-lint run` |
+| Types | `tsc --noEmit`, `mypy .`, `pyright` |
+| Build | `npm run build`, `go build ./...`, `cargo build` |
+
+Check `package.json`, `Makefile`, or project docs for exact commands.
+
+## Issue Type Rules
+
+**task** — Implement exactly what's specified:
+- NO scope expansion
+- All acceptance criteria must pass before closing
+- Search the codebase first — don't assume something isn't already built
+- If you discover additional work, create a new issue with `bd create`
+
+**bug** — Reproduce, diagnose, fix:
+- NO unrelated changes — fix only the bug
+- Minimal, focused fix — don't refactor surrounding code
+- Regression test is required
+- If you discover related bugs, create new issues with `bd create --type=bug`
+
+**epic/feature** — Milestone check:
+- These are containers for related work
+- Run `bd show <id>` to see child issues
+- If all children are closed, close with `bd close <id> --reason="All child issues complete"`
+- If children remain open, output `<promise>BLOCKED</promise>` — the loop will retry later
+
+## Important Rules
+
+- **One issue per iteration** - Do not work on multiple issues
+- **No partial work** - Either complete the issue fully or don't start it
+- **Update tickets** - Use `bd comments add` to log progress
+- **Run quality checks** - Always run verification before committing
+- **Descriptive commits** - Include issue ID in commit message
+
+## Ticket Update Guidelines
+
+Keep ticket updates **succinct but informative**. Each comment should be 1-2 sentences max.
+
+**Good examples:**
+- `bd comments add <id> "Starting work. Plan: implement auth middleware, add tests, update docs"`
+- `bd comments add <id> "Progress: auth middleware complete, 5/8 tests passing"`
+- `bd comments add <id> "Verification: all tests pass, lint clean, types check"`
+
+**Bad examples:**
+- ❌ "Working on it" (not informative)
+- ❌ "Starting work. I'm going to first read through the codebase to understand..." (too verbose)
+- ❌ Long multi-paragraph explanations
+
+## Completion Signal
+
+When you have completed ONE issue successfully, output:
+
+```
+<promise>COMPLETE</promise>
+```
+
+If you encounter a blocker that prevents completion, add a comment explaining the blocker and output:
+
+```
+<promise>BLOCKED</promise>
+```
+
+## Dependencies
+
+Issues may have dependencies. Check with:
+```bash
+bd show <id>  # Shows dependencies in output
+bd dep tree <id>  # Visual dependency tree
+```
+
+Only work on issues that have no unresolved blockers (i.e., issues shown by `bd ready`).
