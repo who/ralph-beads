@@ -35,6 +35,28 @@ Together they provide:
 
 The loop is stateless. Context clears after each iteration. All state lives in beads + git.
 
+## Cross-Loop Visibility
+
+Traditional ralph uses `activity.md` for cross-loop memory. Beads replaces this with **ticket comments + `bd activity`**:
+
+```bash
+# At loop start: see recent activity with comment details
+bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | \
+  xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'
+```
+
+Each loop writes a structured completion comment to the ticket:
+
+```
+**Changes**:
+- Added auth middleware in src/middleware/auth.ts
+- Created login/logout endpoints
+
+**Verification**: All tests passing, lint clean
+```
+
+Activity is co-located with work—no separate file to maintain.
+
 ## Quick Start
 
 ```bash
@@ -64,6 +86,17 @@ This approach synthesizes ideas from:
 - `bd` CLI (beads)
 - `git`
 - `jq`
+
+## Claude Integration
+
+Beads uses CLI + Hooks for Claude Code integration (~1-2k tokens vs 10-50k for MCP):
+
+```bash
+bd setup claude        # Install hooks
+bd doctor claude       # Verify integration
+```
+
+Hooks run `bd prime` at session start and before context compaction to inject workflow context.
 
 ## Files
 
