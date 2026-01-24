@@ -4,17 +4,16 @@ Read @AGENTS.md for session rules and landing-the-plane protocol.
 
 ## Your Task
 
-1. **Check Status**: Run `bd ready` to see issues with no blockers
-2. **Select One Issue**: Pick the highest-priority issue from ready work
-3. **Claim It**: Run `bd update <id> --status=in_progress`
-4. **Log Start**: Add comment with your implementation plan: `bd comments add <id> "Starting work. Plan: <brief strategy>"`
+1. **Check Recent Activity**: Run `bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'` to see what happened in previous loops (with comment details)
+2. **Check Status**: Run `bd ready` to see issues with no blockers
+3. **Select One Issue**: Pick the highest-priority issue from ready work
+4. **Claim It**: Run `bd update <id> --status=in_progress`
 5. **Implement**: Make the code changes described in the issue
-6. **Log Progress**: After key milestones, update ticket: `bd comments add <id> "Progress: <what you completed>"`
-7. **Verify**: Run tests, linting, or other verification appropriate to your project
-8. **Log Verification**: Record verification results: `bd comments add <id> "Verification: <test results summary>"`
-9. **Complete**: Run `bd close <id> --reason="<brief summary>"`
-10. **Commit**: Stage and commit your changes with descriptive message
-11. **Push**: Run `git pull --rebase && bd sync && git push` to preserve work
+6. **Verify**: Run tests, linting, or other verification appropriate to your project
+7. **Log Completion**: Add structured comment (see format below)
+8. **Complete**: Run `bd close <id> --reason="<brief summary>"`
+9. **Commit**: Stage and commit your changes with descriptive message
+10. **Push**: Run `git pull --rebase && bd sync && git push` to preserve work
 
 ## Verification
 
@@ -53,23 +52,33 @@ Check `package.json`, `Makefile`, or project docs for exact commands.
 
 - **One issue per iteration** - Do not work on multiple issues
 - **No partial work** - Either complete the issue fully or don't start it
-- **Update tickets** - Use `bd comments add` to log progress
+- **Log completion** - Use structured comment format before closing
 - **Run quality checks** - Always run verification before committing
 - **Descriptive commits** - Include issue ID in commit message
 
-## Ticket Update Guidelines
+## Completion Comment Format
 
-Keep ticket updates **succinct but informative**. Each comment should be 1-2 sentences max.
+Use this structured format for the completion comment (step 7):
 
-**Good examples:**
-- `bd comments add <id> "Starting work. Plan: implement auth middleware, add tests, update docs"`
-- `bd comments add <id> "Progress: auth middleware complete, 5/8 tests passing"`
-- `bd comments add <id> "Verification: all tests pass, lint clean, types check"`
+```bash
+bd comments add <id> "**Changes**:
+- <file or component modified> - <what was done>
+- <another change>
 
-**Bad examples:**
-- ❌ "Working on it" (not informative)
-- ❌ "Starting work. I'm going to first read through the codebase to understand..." (too verbose)
-- ❌ Long multi-paragraph explanations
+**Verification**: <test results, lint status, manual checks>"
+```
+
+**Example:**
+```bash
+bd comments add bd-a1b2c3 "**Changes**:
+- Added auth middleware in src/middleware/auth.ts
+- Created login/logout endpoints in src/routes/auth.ts
+- Added JWT token validation
+
+**Verification**: All tests passing (12/12), lint clean, manual login flow tested"
+```
+
+**Keep it concise** — bullet points for changes, one line for verification.
 
 ## Completion Signal
 

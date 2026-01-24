@@ -193,6 +193,71 @@ Supports up to 3 levels: `bd-a3f8e9` → `bd-a3f8e9.1` → `bd-a3f8e9.1.1`
 4. Parallel subagents for reads; single subagent for build/test
 5. Don't assume not implemented—search first
 
+## Cross-Loop Visibility
+
+Traditional ralph uses `activity.md`—an append-only file for cross-loop memory. Beads replaces this with **ticket comments + `bd activity`**:
+
+| Traditional | Beads Equivalent |
+|-------------|------------------|
+| Append to activity.md | `bd comments add <id> "..."` on the ticket |
+| Read activity.md | `bd activity` + `bd comments <id>` |
+
+**Ticket comments ARE the activity log.** Each loop writes a structured completion comment to the ticket (matching the ortus activity.md format):
+
+```
+**Changes**:
+- <file or component> - <what was done>
+- <another change>
+
+**Verification**: <test results, lint status, manual checks>
+```
+
+This keeps activity co-located with the work rather than in a separate file.
+
+### `bd activity` (state changes)
+
+```bash
+bd activity                     # Show last 100 events
+bd activity --since 5m          # Events from last 5 minutes
+bd activity --follow            # Real-time streaming
+bd activity --mol bd-x7k        # Filter by issue prefix
+bd activity --type update       # Filter by event type
+bd activity --town              # Aggregated feed from all rigs
+```
+
+**Event symbols**:
+| Symbol | Meaning |
+|--------|---------|
+| `+` | created/bonded |
+| `→` | in_progress |
+| `✓` | completed |
+| `✗` | failed |
+| `⊘` | deleted |
+
+**Loop integration**: AI runs `bd activity --limit 10` at loop start to see recent state changes across all issues.
+
+### Rich Context (with comments)
+
+`bd activity` shows state changes but not comment content. To see what was actually done in recent loops:
+
+```bash
+# Get recent activity with full comment content
+bd activity --limit 10 --json | \
+  jq -r '.[].issue_id' | \
+  sort -u | \
+  while read -r id; do
+    echo "=== $id ==="
+    bd comments "$id" 2>/dev/null || echo "(no comments)"
+    echo
+  done
+```
+
+Or as a one-liner for prompt.md:
+
+```bash
+bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'
+```
+
 ## Dependencies
 
 - `claude` CLI
@@ -200,7 +265,60 @@ Supports up to 3 levels: `bd-a3f8e9` → `bd-a3f8e9.1` → `bd-a3f8e9.1.1`
 - `git`
 - `jq`
 
-## Claude Settings
+## Claude Integration
+
+Beads uses a **CLI + Hooks** approach for Claude Code integration—lightweight, editor-agnostic, and context-efficient.
+
+### `bd prime`
+
+Injects ~1-2k tokens of workflow context into Claude's session:
+
+```bash
+bd prime              # Output workflow context to stdout
+bd prime --check      # Verify prime content is valid
+```
+
+This teaches Claude the beads workflow (ready → create → update → close → sync) without bloating the context window.
+
+### Hooks
+
+Two hooks automate context injection:
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| **SessionStart** | Claude Code session begins | Runs `bd prime` to inject workflow context |
+| **PreCompact** | Before context compaction | Preserves beads instructions when Claude summarizes long conversations |
+
+### Setup
+
+```bash
+bd setup claude             # Global installation
+bd setup claude --project   # Project-only (writes to .claude/)
+bd setup claude --stealth   # Flush only, no git operations
+bd setup claude --check     # Verify installation
+bd setup claude --remove    # Remove hooks
+```
+
+### Verification
+
+```bash
+bd doctor claude            # Check integration health
+```
+
+### Why Hooks Over MCP/Skills
+
+| Approach | Context Cost | Trade-off |
+|----------|--------------|-----------|
+| MCP tool schemas | 10-50k tokens | Full tool introspection, but heavy |
+| Claude Skills | Variable | Claude-specific, breaks other editors |
+| **`bd prime` + hooks** | **1-2k tokens** | 10-50x lighter, works everywhere |
+
+**Design priorities**:
+- **Context efficiency** — Attention quality degrades with prompt size
+- **Editor-agnostic** — Same workflow for Claude Code, Cursor, Windsurf, Zed
+- **Simplicity** — Beads workflow is 5 commands, not a plugin ecosystem
+
+### Claude Settings
 
 `.claude/settings.json` for ralph loops:
 
