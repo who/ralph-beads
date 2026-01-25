@@ -153,77 +153,7 @@ bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | \
   xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'
 ```
 
-## Quick Start
-
-### Prerequisites
-
-Install the required tools:
-
-- **Beads**: See [steveyegge/beads](https://github.com/steveyegge/beads) for installation
-- **Claude Code**: See [Anthropic's Claude Code](https://docs.anthropic.com/en/docs/claude-code) for installation
-- **git** and **jq**: Install via your package manager
-
-### Usage
-
-1. Define your requirements and decompose them into `beads` issues.
-2. Execute the ralph loop
-
-```bash
-# If your requirements are not yet clear
-echo "I want to build [product idea]. Use AskUserQuestion to clarify requirements \
-through 3-5 rounds of questions. Write a PRD to prd/[feature].md and decompose \
-into beads tasks with dependencies." | claude --allowedTools "AskUserQuestion,Bash(bd:*)"
-
-# If your requirements are already created in [feature].md
-echo "Read [feature].md. Use bd to create an epic and decompose into tasks \
-with dependencies. Each task must have acceptance criteria." | claude --allowedTools "Bash(bd:*)"
-
-# Execute: run the loop
-./ralph.sh
-```
-
-## File Structure
-
-```
-project-root/
-├── ralph.sh             # Orchestration loop
-├── prompt.md            # Agent instructions (issue type rules, completion format)
-├── AGENTS.md            # Operational constraints
-├── prd/                 # Large requirement docs (optional)
-└── .beads/              # Issues point to PRDs, track state
-```
-
-## Claude Integration
-
-Beads uses a **CLI + Hooks** approach for Claude Code integration—lightweight, editor-agnostic, and context-efficient (~1-2k tokens vs 10-50k for MCP).
-
-### Setup
-
-```bash
-bd setup claude             # Global installation
-bd setup claude --project   # Project-only (writes to .claude/)
-bd setup claude --check     # Verify installation
-bd doctor claude            # Check integration health
-```
-
-### How It Works
-
-Two hooks automate context injection:
-
-| Hook | Trigger | Purpose |
-|------|---------|---------|
-| **SessionStart** | Claude Code session begins | Runs `bd prime` to inject workflow context |
-| **PreCompact** | Before context compaction | Preserves beads instructions when Claude summarizes |
-
-### Why Hooks Over MCP/Skills
-
-| Approach | Context Cost | Trade-off |
-|----------|--------------|-----------|
-| MCP tool schemas | 10-50k tokens | Full tool introspection, but heavy |
-| Claude Skills | Variable | Claude-specific, breaks other editors |
-| **`bd prime` + hooks** | **1-2k tokens** | 10-50x lighter, works everywhere |
-
-### Claude Settings
+### Recommended Claude Settings
 
 `.claude/settings.json` for ralph loops:
 
