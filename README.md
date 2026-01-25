@@ -1,76 +1,268 @@
-# Ralph Beads
+# Ralph Wiggum Loop + Beads
 
-Autonomous AI agent loops powered by a local-first issue tracker.
+Autonomous AI agent loops powered by a local-first issue tracker and memory bank.
 
-## The Problem
+## Beads
 
-AI coding agents lose context. They hallucinate plans. They forget what they were doing. Multiple agents conflict. Session crashes lose work.
+[Beads](https://github.com/steveyegge/beads) is a local-first issue tracker designed for AI agents. Issues live in `.beads/` as JSON files—no server, no sync conflicts, works offline. Hierarchical structure (epic → feature → task) with explicit dependencies. Issue descriptions double as memory: context persists across sessions without separate memory banks.
 
-Existing solutions create more problems:
-- `IMPLEMENTATION_PLAN.md` files get corrupted by concurrent edits
-- Memory banks require a separate system to maintain
-- PRD documents sit disconnected from actual execution
-- Flat task lists force agents to parse ordering themselves
+## Ralph Wiggum Loops
 
-## The Solution
+[Ralph Wiggum loops](https://github.com/ghuntley/how-to-ralph-wiggum) are autonomous execution patterns for AI coding agents. One bash loop. Read plan, pick task, implement, commit, exit. Fresh context every iteration—no accumulated cruft, no degraded attention. The AI operates in its "smart zone" continuously because the whiteboard wipes clean after each task.
 
-**Beads** is a local-first issue tracker designed for AI agents. **Ralph loops** are autonomous execution cycles that consume work from beads.
+## Combine Them!
 
-Together they provide:
+Beads and Ralph Wiggum loops are effective standalone tools. Together, each strengthens the other.
+
+Ralph usually tracks tasks in a flat file markdown doc with `passes` flags. It works. Beads improves it: hierarchical issues with explicit dependencies, atomic status updates (`bd close` vs editing markdown), and `bd ready` returns only unblocked work—no parsing task ordering from prose.
+
+Beads tracks issues but needs an executor. Ralph provides it: pick issue, implement, close, exit. Fresh context each iteration.
+
+The loop stays stateless; state lives in beads.
+
+## What You Get
+
 - **Atomic state** — Each agent claims and completes one issue at a time
 - **Dependency ordering** — `bd ready` returns only unblocked work
 - **Memory as issues** — Descriptions persist context across sessions
 - **Hierarchical decomposition** — Epics → features → tasks with clear relationships
 
-## How It Works
+## How Beads Augments Ralph Wiggum Loops
+
+| Traditional Ralph Approach | Problem | Beads Solution |
+|---------------------|---------|----------------|
+| `IMPLEMENTATION_PLAN.md` | Single file grows unbounded; crash loses edits; parallel workers conflict on writes | Atomic `bd close`; each worker claims own issue; no shared mutable file |
+| Memory banks / `activity.md` | Separate system to maintain alongside tasks; context split across locations | Issue descriptions ARE the memory; context co-located with work |
+| Flat task lists with `passes` flags | Agent must parse prose to determine ordering; no explicit dependencies | `bd ready` returns only unblocked work; dependencies are first-class |
+| Full plan in context | Bloats context window; hallucination risk increases with prompt size | Each task is self-contained; related context is queryable, not preloaded |
+
+## Beads Issue Hierarchy
 
 ```
-1. Agent runs `bd ready` to get the next unblocked issue
-2. Issue type determines behavior:
-   - task/bug → Implement code
-   - epic/feature → Check if children complete (milestone)
-3. Agent completes work, runs `bd close <id>`
-4. Loop repeats until no ready work remains
+epic → feature → task
+bug (independent, any priority)
 ```
 
-The loop is stateless. Context clears after each iteration. All state lives in beads + git.
+Supports up to 3 levels: `bd-a3f8e9` → `bd-a3f8e9.1` → `bd-a3f8e9.1.1`
+
+**Priority**: P0 (critical) → P4 (backlog)
+
+**Work order**: Priority first, then type (epic→feature→bug→task), then FIFO.
+
+## Beads Issue Type Rules For Ralph
+
+| Type | Behavior |
+|------|----------|
+| **task** | Implement exactly what's specified, no scope expansion. File bugs if needed. |
+| **bug** | Fix only the bug, add regression test, no unrelated changes |
+| **epic/feature** | Milestone checks—close when all children complete. Can also be used as an additional approval or quality gate to validate all tasks for the epic/feature are completed correctly. |
+
+## PRD → Beads Workflow
+
+1. **Write PRD**, then **prompt agent to create and decompose**:
+   ```bash
+   echo "Read [my-prd].md. Use bd to create an epic and decompose into tasks \
+   with dependencies. Each task must have acceptance criteria." | claude --allowedTools "Bash(bd:*)"
+   ```
+
+2. **Agent does everything**:
+   - Reads PRD
+   - Creates epic with descriptive title, pointer in description
+   - Creates child tasks with full requirements inline
+   - Sets dependencies between tasks
+
+3. **Verify and execute**:
+   ```bash
+   bd dep tree bd-a3f8e9    # Review structure
+   ./ralph.sh               # Start execution
+   ```
+
+**Rules**:
+- Epics point to PRDs; tasks are self-contained with all requirements inline
+- All tasks must have acceptance criteria—agent cannot close a task until criteria pass
+
+## How The Ralph+Beads Loop Works
+
+The loop ([ralph.sh](ralph.sh)) is a thin wrapper—it just invokes Claude repeatedly and checks for completion signals. All the real logic lives in [prompt.md](prompt.md), which tells the agent how to select work, claim issues atomically, implement changes, verify, log completion, and commit.
+
+Here's a high-level of what the [prompt.md](prompt.md) does when invoked with [ralph.sh](ralph.sh).
+```
+1. Check recent activity     → See what previous loops did
+2. bd ready                  → Get next unblocked issue (if empty, stop)
+3. Claim immediately         → bd update <id> --status=in_progress
+4. Issue type decides behavior:
+   - task/bug                → Implement → Verify → Log → Close → Commit → Push
+   - epic/feature            → Milestone check (close if all children complete)
+5. Context clears, loop repeats
+```
+
+The loop is stateless. Context clears after each iteration. All state lives in beads.
+
+## The Loop
+
+See [`ralph.sh`](ralph.sh) for the full implementation.
+
+```bash
+./ralph.sh              # Run until all work complete
+./ralph.sh --idle-sleep 30   # Custom sleep between checks
+```
+
+In a separate terminal window, you can watch raw output of ralph working:
+
+```bash
+tail -f logs/ralph-*.log     # Watch a stream of live, raw json output
+```
 
 ## Cross-Loop Visibility
 
-Traditional ralph uses `activity.md` for cross-loop memory. Beads replaces this with **ticket comments + `bd activity`**:
+Traditional ralph uses `activity.md`—an append-only file for cross-loop memory. Beads replaces this with **ticket comments + `bd activity`**:
+
+| Traditional | Beads Equivalent |
+|-------------|------------------|
+| Append to activity.md | `bd comments add <id> "..."` on the ticket |
+| Read activity.md | `bd activity` + `bd comments <id>` |
+
+**Ticket comments ARE the activity log.** Each loop writes a structured completion comment to the ticket:
+
+```
+**Changes**:
+- <file or component> - <what was done>
+- <another change>
+
+**Verification**: <test results, lint status, manual checks>
+```
+
+This keeps activity co-located with the work rather than in a separate file.
+
+### `bd activity` (state changes)
 
 ```bash
-# At loop start: see recent activity with comment details
+bd activity                     # Show last 100 events
+bd activity --since 5m          # Events from last 5 minutes
+bd activity --follow            # Real-time streaming
+bd activity --mol bd-x7k        # Filter by issue prefix
+bd activity --type update       # Filter by event type
+```
+
+### Rich Context (with comments)
+
+`bd activity` shows state changes but not comment content. To see what was actually done in recent loops:
+
+```bash
 bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | \
   xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'
 ```
 
-Each loop writes a structured completion comment to the ticket:
-
-```
-**Changes**:
-- Added auth middleware in src/middleware/auth.ts
-- Created login/logout endpoints
-
-**Verification**: All tests passing, lint clean
-```
-
-Activity is co-located with work—no separate file to maintain.
-
 ## Quick Start
 
+### Prerequisites
+
+Install the required tools:
+
+- **Beads**: See [steveyegge/beads](https://github.com/steveyegge/beads) for installation
+- **Claude Code**: See [Anthropic's Claude Code](https://docs.anthropic.com/en/docs/claude-code) for installation
+- **git** and **jq**: Install via your package manager
+
+### Usage
+
+1. Define your requirements and decompose them into `beads` issues.
+2. Execute the ralph loop
+
 ```bash
-# Discovery: unclear requirements
+# If your requirements are not yet clear
 echo "I want to build [product idea]. Use AskUserQuestion to clarify requirements \
 through 3-5 rounds of questions. Write a PRD to prd/[feature].md and decompose \
-into beads tasks with dependencies." | claude
+into beads tasks with dependencies." | claude --allowedTools "AskUserQuestion,Bash(bd:*)"
 
-# Setup: PRD already exists
-echo "Read prd/auth-system.md. Use bd to create an epic and decompose into tasks \
-with dependencies. Each task must have acceptance criteria." | claude
+# If your requirements are already created in [feature].md
+echo "Read [feature].md. Use bd to create an epic and decompose into tasks \
+with dependencies. Each task must have acceptance criteria." | claude --allowedTools "Bash(bd:*)"
 
 # Execute: run the loop
 ./ralph.sh
+```
+
+## File Structure
+
+```
+project-root/
+├── ralph.sh             # Orchestration loop
+├── prompt.md            # Agent instructions (issue type rules, completion format)
+├── AGENTS.md            # Operational constraints
+├── prd/                 # Large requirement docs (optional)
+└── .beads/              # Issues point to PRDs, track state
+```
+
+## Claude Integration
+
+Beads uses a **CLI + Hooks** approach for Claude Code integration—lightweight, editor-agnostic, and context-efficient (~1-2k tokens vs 10-50k for MCP).
+
+### Setup
+
+```bash
+bd setup claude             # Global installation
+bd setup claude --project   # Project-only (writes to .claude/)
+bd setup claude --check     # Verify installation
+bd doctor claude            # Check integration health
+```
+
+### How It Works
+
+Two hooks automate context injection:
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| **SessionStart** | Claude Code session begins | Runs `bd prime` to inject workflow context |
+| **PreCompact** | Before context compaction | Preserves beads instructions when Claude summarizes |
+
+### Why Hooks Over MCP/Skills
+
+| Approach | Context Cost | Trade-off |
+|----------|--------------|-----------|
+| MCP tool schemas | 10-50k tokens | Full tool introspection, but heavy |
+| Claude Skills | Variable | Claude-specific, breaks other editors |
+| **`bd prime` + hooks** | **1-2k tokens** | 10-50x lighter, works everywhere |
+
+### Claude Settings
+
+`.claude/settings.json` for ralph loops:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(bd *)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(rm -rf *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(**/credentials.json)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": false,
+    "network": {
+      "allowLocalBinding": true
+    }
+  }
+}
 ```
 
 ## Origins
@@ -78,7 +270,7 @@ with dependencies. Each task must have acceptance criteria." | claude
 This approach synthesizes ideas from:
 - [ghuntley/how-to-ralph-wiggum](https://github.com/ghuntley/how-to-ralph-wiggum) — The original Ralph pattern
 - [ClaytonFarr/ralph-playbook](https://github.com/ClaytonFarr/ralph-playbook) — Structured playbook version
-- [steveyegge/beads](https://github.com/steveyegge/beads) — Local-first issue tracker for AI
+- [steveyegge/beads](https://github.com/steveyegge/beads) — Local-first issue tracker and memory bank for AI
 
 ## Dependencies
 
@@ -86,29 +278,6 @@ This approach synthesizes ideas from:
 - `bd` CLI (beads)
 - `git`
 - `jq`
-
-## Claude Integration
-
-Beads uses CLI + Hooks for Claude Code integration (~1-2k tokens vs 10-50k for MCP):
-
-```bash
-bd setup claude        # Install hooks
-bd doctor claude       # Verify integration
-```
-
-Hooks run `bd prime` at session start and before context compaction to inject workflow context.
-
-## Files
-
-```
-project-root/
-├── ralph.sh             # Orchestration loop
-├── AGENTS.md            # Operational constraints
-├── prompts/
-│   └── prompt.md        # Agent instructions
-├── prd/                 # PRD documents (optional)
-└── .beads/              # Issue state
-```
 
 ## License
 
