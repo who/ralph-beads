@@ -2,6 +2,8 @@
 
 Autonomous AI agent loops powered by a local-first issue tracker and memory bank.
 
+![Ralph Beads](ralph-beads.png)
+
 ## Beads
 
 [Beads](https://github.com/steveyegge/beads) is a local-first issue tracker designed for AI agents. Issues live in `.beads/` as JSON files—no server, no sync conflicts, works offline. Hierarchical structure (epic → feature → task) with explicit dependencies. Issue descriptions double as memory: context persists across sessions without separate memory banks.
