@@ -2,17 +2,22 @@
 
 Read @AGENTS.md for session rules and landing-the-plane protocol.
 
+You are invoked in a bash loop. Each invocation = one task. The loop restarts you with fresh context after you exit. Do ONE thing, then stop.
+
 ## Your Task
 
-1. **Check Recent Activity**: Run `bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'` to see what happened in previous loops
-2. **Get Ready Work**: Run `bd ready --json` to get issues with no blockers. If empty, stop.
-3. **Claim Immediately**: Run `bd update <id> --status=in_progress` for the first issue before doing anything else
-4. **Implement**: Make the code changes described in the issue
-5. **Verify**: Run tests, linting, or other verification appropriate to your project
-6. **Log Completion**: Add structured comment (see format below)
-7. **Complete**: Run `bd close <id> --reason="<brief summary>"`
-8. **Commit**: Stage and commit your changes with descriptive message
-9. **Push**: Run `git pull --rebase && bd sync && git push` to preserve work
+1. **Orient**: Run `bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | xargs -I{} sh -c 'echo "=== {} ===" && bd comments {} 2>/dev/null'` to see what happened in previous loops
+2. **Select**: Run `bd ready --json` to get issues with no blockers. If empty, output `<promise>EMPTY</promise>` and stop — do nothing else.
+3. **Claim**: Run `bd update <id> --status=in_progress` for the first issue before doing anything else
+4. **Investigate**: Search the codebase first — don't assume not implemented. Use subagents for broad searches.
+5. **Implement**: Make the code changes described in the issue
+6. **Verify**: Run tests, linting, and builds (see Verification below). If they fail, fix and re-verify — this is backpressure, not a reason to stop.
+7. **Log**: Add structured completion comment (see format below)
+8. **Close**: Run `bd close <id> --reason="<brief summary>"`
+9. **Commit & Push**: Stage, commit with issue ID in message, then `git pull --rebase && bd sync && git push`
+10. **Exit**: Output the appropriate signal (see Completion Signals) and stop. You are done. The loop will restart you for the next task.
+
+If you cannot complete the claimed issue (dependency, technical blocker, persistent test failure you cannot resolve), add a comment explaining the blocker via `bd comments add <id> "..."`, then output `<promise>BLOCKED</promise>` and stop.
 
 ## Verification
 
@@ -22,6 +27,8 @@ Read @AGENTS.md for session rules and landing-the-plane protocol.
 # npm test
 # npm run lint
 ```
+
+If verification fails, fix the issue and re-verify. This is backpressure — keep iterating until it passes or you determine the issue is a blocker outside your task's scope.
 
 ## Issue Type Rules
 
@@ -45,10 +52,11 @@ Read @AGENTS.md for session rules and landing-the-plane protocol.
 
 ## Important Rules
 
-- **One issue per iteration** - Do not work on multiple issues
-- **No partial work** - Either complete the issue fully or don't start it
-- **Log completion** - Use structured comment format before closing
-- **Run quality checks** - Always run verification before committing
+- **One task per invocation** - You will be restarted with fresh context for the next task. Do not run `bd ready` a second time. Do not claim a second issue.
+- **No partial work** - Either complete the issue fully or declare it BLOCKED
+- **No placeholders** - Implement completely. No stubs, TODOs, or "implement later" comments
+- **Found bugs** - Never fix bugs inline. Always `bd create --type=bug` to track separately
+- **Verify acceptance criteria** - Tasks MUST NOT be closed unless ALL acceptance criteria pass. Before running `bd close`, verify each criterion is satisfied and document results in the completion comment
 - **Descriptive commits** - Include issue ID in commit message
 
 ## Completion Comment Format
@@ -75,19 +83,26 @@ bd comments add bd-a1b2c3 "**Changes**:
 
 **Keep it concise** — bullet points for changes, one line for verification.
 
-## Completion Signal
+## Completion Signals
 
-When you have completed ONE issue successfully, output:
+Every invocation MUST end with exactly one of these signals, then stop.
 
+**EMPTY** — `bd ready` returned no issues:
+```
+<promise>EMPTY</promise>
+```
+
+**COMPLETE** — You finished one task, committed, and pushed:
 ```
 <promise>COMPLETE</promise>
 ```
 
-If you encounter a blocker that prevents completion, add a comment explaining the blocker and output:
-
+**BLOCKED** — You claimed an issue but cannot complete it. Add a comment explaining why before outputting this:
 ```
 <promise>BLOCKED</promise>
 ```
+
+After outputting any signal, stop immediately. Do not continue working.
 
 ## Dependencies
 
