@@ -51,13 +51,19 @@ Supports up to 3 levels: `bd-a3f8e9` → `bd-a3f8e9.1` → `bd-a3f8e9.1.1`
 
 **Work order**: Priority first, then type (epic→feature→bug→task), then FIFO.
 
-## Beads Issue Type Rules For Ralph
+## How Ralph Handles Issues
 
-| Type | Behavior |
-|------|----------|
-| **task** | Implement exactly what's specified, no scope expansion. File bugs if needed. |
-| **bug** | Fix only the bug, add regression test, no unrelated changes |
-| **epic/feature** | Milestone checks—close when all children complete. Can also be used as an additional approval or quality gate to validate all tasks for the epic/feature are completed correctly. |
+For each ready issue, Ralph asks the model for a JSON plan:
+
+| Field | Purpose |
+|-------|---------|
+| `has_enough_info` | Boolean. `false` means the issue is underspecified. |
+| `missing` | Clarification gaps. Posted as a `bd` comment when `has_enough_info` is false, then the loop emits BLOCKED. |
+| `implementation_steps` | What to do. |
+| `verification_steps` | How to confirm it. |
+| `closure_reason` | Passed to `bd close`. |
+
+The loop validates the shape and executes mechanically. The scheduler does not dispatch on issue type — type, labels, and acceptance criteria are folded into the plan by the model. Epic/feature milestones work the same way: the plan names child-issue checks as verification steps, and the closure reason reflects whether all children are closed. See [prompt.md](prompt.md) for the full contract.
 
 ## PRD → Beads Workflow
 
@@ -92,10 +98,9 @@ Here's a high-level of what the [prompt.md](prompt.md) does when invoked with [r
 1. Check recent activity     → See what previous loops did
 2. bd ready                  → Get next unblocked issue (if empty, stop)
 3. Claim immediately         → bd update <id> --status=in_progress
-4. Issue type decides behavior:
-   - task/bug                → Implement → Verify → Log → Close → Commit → Push
-   - epic/feature            → Milestone check (close if all children complete)
-5. Context clears, loop repeats
+4. Request JSON plan         → {has_enough_info, missing, implementation_steps, verification_steps, closure_reason}
+5. Execute mechanically      → Implement → Verify → Log → Close → Commit → Push
+6. Context clears, loop repeats
 ```
 
 The loop is stateless. Context clears after each iteration. All state lives in beads.
