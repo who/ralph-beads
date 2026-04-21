@@ -30,25 +30,26 @@ If you cannot complete the claimed issue (dependency, technical blocker, persist
 
 If verification fails, fix the issue and re-verify. This is backpressure — keep iterating until it passes or you determine the issue is a blocker outside your task's scope.
 
-## Issue Type Rules
+## Issue Plan
 
-**task** — Implement exactly what's specified:
-- NO scope expansion
-- All acceptance criteria must pass before closing
-- Search the codebase first — don't assume something isn't already built
-- If you discover additional work, create a new issue with `bd create`
+Ask the model (subagent if the task warrants it) how to handle this issue given its type, labels, description, and acceptance criteria. The response must be a JSON plan:
 
-**bug** — Reproduce, diagnose, fix:
-- NO unrelated changes — fix only the bug
-- Minimal, focused fix — don't refactor surrounding code
-- Regression test is required
-- If you discover related bugs, create new issues with `bd create --type=bug`
+```json
+{
+  "has_enough_info": true,
+  "missing": [],
+  "implementation_steps": ["..."],
+  "verification_steps": ["..."],
+  "closure_reason": "brief reason passed to bd close"
+}
+```
 
-**epic/feature** — Milestone check:
-- These are containers for related work
-- Run `bd show <id>` to see child issues
-- If all children are closed, close with `bd close <id> --reason="All child issues complete"`
-- If children remain open, output `<promise>BLOCKED</promise>` — the loop will retry later
+Validate the shape — all five keys present, `has_enough_info` a boolean, `missing` an array of strings, `implementation_steps`/`verification_steps` arrays, `closure_reason` a non-empty string — then execute mechanically:
+
+- If `has_enough_info` is `false`, post a `bd comments add` listing each entry in `missing` as a clarification gap, then emit `<promise>BLOCKED</promise>`. Ambiguity is the plan's job to surface; the scheduler does not judge it.
+- Otherwise, execute `implementation_steps`, then `verification_steps`, then `bd close <id> --reason="<closure_reason>"`.
+
+Do not re-derive behavior from the issue's type in the scheduler; the model folds type, labels, and acceptance criteria into the plan. If verification fails, re-prompt with the failing output and iterate — this is backpressure, not a reason to stop.
 
 ## Important Rules
 
