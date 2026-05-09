@@ -195,12 +195,15 @@ bd activity --limit 10 --json | jq -r '.[].issue_id' | sort -u | \
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "allowUnsandboxedCommands": false,
+    "excludedCommands": ["bd", "bd *"],
     "network": {
       "allowLocalBinding": true
     }
   }
 }
 ```
+
+The `excludedCommands` entry routes `bd` invocations to the host shell instead of the bwrap sandbox. This matters because bd talks to dolt over loopback (sandboxed loopback is a separate namespace from the host's), and the inner Claude session inheriting a sandboxed bd will hang trying to reach the dolt server the host started. Keeping bd on the host side eliminates that whole class of failures.
 
 ## Origins
 

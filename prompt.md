@@ -6,7 +6,7 @@ You are invoked in a bash loop. Each invocation = one task. The loop restarts yo
 
 ## Your Task
 
-1. **Orient**: Run `bd list --sort updated --all --limit 10 --json | jq -r '.[].id' | xargs bd show --json` to see what happened in previous loops
+1. **Orient**: Run `bd list --sort updated --all --limit 10 --json` to see recent activity, then parse the IDs from the JSON and run `bd show <id1> <id2> <id3>` (space-separated, in one bd call) to read full details. **Each bd command must be its own Bash tool call with `bd` as the first token.** Never wrap bd in another command — no pipes (`bd ... | jq`), no `xargs bd`, no chaining with `&&` or `;`, no `bash -c "bd ..."`. The sandbox exemption only fires when the harness sees `bd` as the directly-invoked bash command; any wrapping form makes bd a sandboxed child of the wrapper and it hangs on dolt.
 2. **Select**: Run `bd ready --json` to get issues with no blockers. If empty, output `<promise>EMPTY</promise>` and stop — do nothing else.
 3. **Claim**: Run `bd update <id> --status=in_progress` for the first issue before doing anything else
 4. **Investigate**: Search the codebase first — don't assume not implemented. Use subagents for broad searches.
@@ -14,7 +14,13 @@ You are invoked in a bash loop. Each invocation = one task. The loop restarts yo
 6. **Verify**: Run tests, linting, and builds (see Verification below). If they fail, fix and re-verify — this is backpressure, not a reason to stop.
 7. **Log**: Add structured completion comment (see format below)
 8. **Close**: Run `bd close <id> --reason="<brief summary>"`
-9. **Commit & Push**: Stage, commit with issue ID in message, then `git pull --rebase && bd sync && git push`
+9. **Commit & Push**: Stage and commit with the issue ID in the message. Then run these in order, **each as its own separate Bash tool call** (never chain with `&&` or `;` — that wraps everything in `bash -c` and `bd sync` loses its sandbox exemption, becoming a sandboxed child of bash and hanging on dolt):
+
+       git pull --rebase
+       bd sync
+       git push
+
+   If `bd sync` fails, still run `git push` — bd state is in `.beads/issues.jsonl` which the commit included, so the work survives a sidecar-sync failure.
 10. **Exit**: Output the appropriate signal (see Completion Signals) and stop. You are done. The loop will restart you for the next task.
 
 If you cannot complete the claimed issue (dependency, technical blocker, persistent test failure you cannot resolve), add a comment explaining the blocker via `bd comments add <id> "..."`, then output `<promise>BLOCKED</promise>` and stop.
